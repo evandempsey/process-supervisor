@@ -20,11 +20,10 @@ void set_limits(time_value, mem_value)
 
     time_limit.rlim_cur = time_value;
     time_limit.rlim_max = time_value;
+    setrlimit(RLIMIT_CPU, &time_limit);
 
     mem_limit.rlim_cur = mem_value;
     mem_limit.rlim_max = mem_value;
-
-    setrlimit(RLIMIT_CPU, &time_limit);
     setrlimit(RLIMIT_AS, &mem_limit);
 }
 
@@ -39,6 +38,7 @@ void run_command(char **command)
     {
 
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        printf("Test write call.\n");
         if (execvp(*command, command) > 0)
         {
             fprintf(stderr, "Forking child failed.\n");
@@ -58,7 +58,7 @@ void run_command(char **command)
                               NULL);
 
             printf("The child made a system call %ld\n", orig_eax);
-            ptrace(PTRACE_CONT, pid, NULL, NULL);
+            ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
         }
     }
 }
