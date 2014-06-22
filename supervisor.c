@@ -1,12 +1,16 @@
+#include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/resource.h>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <sys/reg.h>
+#include <sys/syscall.h>
+#include "whitelist.h"
 
 void display_usage(int opt)
 {
@@ -29,6 +33,7 @@ void set_limits(time_value, mem_value)
 
 void run_command(char **command)
 {
+    int execcount = 0;
     int status;
     pid_t pid;
     long orig_eax;
@@ -38,7 +43,6 @@ void run_command(char **command)
     {
 
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
-        printf("Test write call.\n");
         if (execvp(*command, command) > 0)
         {
             fprintf(stderr, "Forking child failed.\n");
@@ -57,7 +61,18 @@ void run_command(char **command)
                               pid, 4 * ORIG_EAX,
                               NULL);
 
-            printf("The child made a system call %ld\n", orig_eax);
+            assert(orig_eax >= 0 && orig_eax <= 337);
+            if (orig_eax == SYS_execve && execcount < 2)
+            {
+                execcount++;
+            }
+            else if (!whitelist[orig_eax])
+            {
+                printf("Illegal system call: %ld\n", orig_eax);
+                kill(pid, SIGKILL);
+                exit(EXIT_FAILURE);
+            }
+
             ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
         }
     }
