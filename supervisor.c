@@ -39,9 +39,11 @@ void run_command(char **command)
     {
 
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
-        //execlp(SHELL, SHELL, "-c", command, NULL);
-
-        execvp(*command, command);
+        if (execvp(*command, command) > 0)
+        {
+            fprintf(stderr, "Forking child failed.\n");
+            exit(EXIT_FAILURE);
+        }
     }
     else
     {
