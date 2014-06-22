@@ -8,8 +8,6 @@
 #include <sys/wait.h>
 #include <sys/reg.h>
 
-#define SHELL "/bin/sh"
-
 void display_usage(int opt)
 {
     fprintf(stderr, "Unknown option -%c.\n", optopt);
@@ -30,34 +28,35 @@ void set_limits(time_value, mem_value)
     setrlimit(RLIMIT_AS, &mem_limit);
 }
 
-void run_command(char *command)
+void run_command(char **command)
 {
     int status;
-    pid_t child;
+    pid_t pid;
     long orig_eax;
 
-    child = fork();
-    if (child == 0)
+    pid = fork();
+    if (pid == 0)
     {
 
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
-        execl(SHELL, SHELL, "-c", command, NULL);
+        //execlp(SHELL, SHELL, "-c", command, NULL);
+
+        execvp(*command, command);
     }
     else
     {
         while (1)
         {
             wait(&status);
-
-            if (WIFEXITED(status))
+            if (WIFEXITED(status) || WIFSIGNALED(status))
                 break;
 
             orig_eax = ptrace(PTRACE_PEEKUSER,
-                              child, 4 * ORIG_EAX,
+                              pid, 4 * ORIG_EAX,
                               NULL);
 
             printf("The child made a system call %ld\n", orig_eax);
-            ptrace(PTRACE_CONT, child, NULL, NULL);
+            ptrace(PTRACE_CONT, pid, NULL, NULL);
         }
     }
 }
@@ -67,7 +66,7 @@ int main(int argc, char **argv)
     int opt = 0;
     char *time_value = NULL;
     char *mem_value = NULL;
-    char command[256] = "\"";
+    char command[16][256];
 
     opterr = 0;
     while ((opt = getopt(argc, argv, "t:m:")) != -1)
@@ -88,20 +87,8 @@ int main(int argc, char **argv)
         }
     }
 
-    int i = 0;
-    for (i=optind; i<argc; i++)
-    {
-        if (i > optind)
-            strcat(command, " ");
-        strcat(command, argv[i]);
-    }
-    strcat(command, "\"");
-
-    printf("Time option: %s, Memory option: %s, Command: %s\n",
-           time_value, mem_value, command);
-
     set_limits(atoi(time_value), atoi(mem_value));
-    run_command(command);
+    run_command(&argv[optind]);
 
     return EXIT_SUCCESS;
 }
