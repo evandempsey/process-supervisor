@@ -229,7 +229,7 @@ int whitelist[338] = {
     0, // 227 - sys_lsetxattr
     0, // 228 - sys_fsetxattr
     1, // 229 - sys_getxattr
-    0, // 230 - sys_lgetxattr
+    1, // 230 - sys_lgetxattr
     0, // 231 - sys_fgetxattr
     0, // 232 - sys_listxattr
     0, // 233 - sys_llistxattr

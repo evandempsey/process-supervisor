@@ -31,7 +31,34 @@ void set_limits(time_value, mem_value)
     setrlimit(RLIMIT_AS, &mem_limit);
 }
 
-void run_command(char **command)
+char **parse_command(char *str)
+{
+    char **result = NULL;
+    char *p = strtok(str, " ");
+    int spaces = 0, i;
+
+    // split string and append tokens to result
+
+    while (p) {
+        result = realloc (result, sizeof(char*) * ++spaces);
+
+        if (result == NULL)
+            exit(EXIT_FAILURE); // memory allocation failed
+
+        result[spaces-1] = p;
+
+        p = strtok (NULL, " ");
+    }
+
+    // realloc one extra element for the last NULL
+
+    result = realloc(result, sizeof(char*) * (spaces+1));
+    result[spaces] = 0;
+
+    return result;
+}
+
+int run_command(char **command)
 {
     int execcount = 0;
     int status;
@@ -47,7 +74,7 @@ void run_command(char **command)
         if (execvp(*command, command) > 0)
         {
             fprintf(stderr, "Forking child failed.\n");
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
     }
     else            // We are in the parent process.
@@ -79,24 +106,28 @@ void run_command(char **command)
             {
                 printf("Illegal system call: %ld\n", orig_eax);
                 kill(pid, SIGKILL);
-                exit(EXIT_FAILURE);
+                return EXIT_FAILURE;
             }
 
             /* Resume tracing and notify on next syscall. */
             ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
         }
     }
+
+    return EXIT_SUCCESS;
 }
 
 int main(int argc, char **argv)
 {
     int opt = 0;
+    int exit_code = 0;
     char *time_value = NULL;
     char *mem_value = NULL;
-    char command[16][256];
+    char *command = NULL;
+    char **split_command;
 
     opterr = 0;
-    while ((opt = getopt(argc, argv, "t:m:")) != -1)
+    while ((opt = getopt(argc, argv, "t:m:c:")) != -1)
     {
         switch (opt)
         {
@@ -105,6 +136,9 @@ int main(int argc, char **argv)
             break;
         case 'm':
             mem_value = optarg;
+            break;
+        case 'c':
+            command = optarg;
             break;
         case '?':
             print_error(opt);
@@ -115,7 +149,9 @@ int main(int argc, char **argv)
     }
 
     set_limits(atoi(time_value), atoi(mem_value));
-    run_command(&argv[optind]);
+    split_command = parse_command(command);
+    exit_code = run_command(split_command);
+    free(split_command);
 
-    return EXIT_SUCCESS;
+    return exit_code;
 }
