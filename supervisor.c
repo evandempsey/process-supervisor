@@ -12,7 +12,7 @@
 #include <sys/syscall.h>
 #include "whitelist.h"
 
-void display_usage(int opt)
+void print_error(int opt)
 {
     fprintf(stderr, "Unknown option -%c.\n", optopt);
     exit(EXIT_FAILURE);
@@ -39,7 +39,8 @@ void run_command(char **command)
     long orig_eax;
 
     pid = fork();
-    if (pid == 0)
+
+    if (pid == 0)   // We are in the child process.
     {
 
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
@@ -49,19 +50,27 @@ void run_command(char **command)
             exit(EXIT_FAILURE);
         }
     }
-    else
+    else            // We are in the parent process.
     {
         while (1)
         {
             wait(&status);
+
+            /* If the child has exited cleanly or been
+             * killed, break out of the loop and exit.
+             */
             if (WIFEXITED(status) || WIFSIGNALED(status))
                 break;
 
+            // EAX register holds the number of the syscall.
             orig_eax = ptrace(PTRACE_PEEKUSER,
                               pid, 4 * ORIG_EAX,
                               NULL);
 
-            assert(orig_eax >= 0 && orig_eax <= 337);
+            /* SYS_execve call should be allowed twice
+             * for the entry and exit of the initial
+             * call that executes the given command
+             */
             if (orig_eax == SYS_execve && execcount < 2)
             {
                 execcount++;
@@ -73,6 +82,7 @@ void run_command(char **command)
                 exit(EXIT_FAILURE);
             }
 
+            /* Resume tracing and notify on next syscall. */
             ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
         }
     }
@@ -97,7 +107,7 @@ int main(int argc, char **argv)
             mem_value = optarg;
             break;
         case '?':
-            display_usage(opt);
+            print_error(opt);
             break;
         default:
             break;
